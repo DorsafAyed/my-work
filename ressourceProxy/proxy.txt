@@ -1,0 +1,219 @@
+application.yml
+
+# Custom properties to ease configuration overrides
+# on command-line or IDE launch configurations
+scheme: http
+hostname: 172.29.208.1
+reverse-proxy-port: 7080
+
+angular-port: 4201
+angular-prefix: /angular-ui
+angular-uri: http://${hostname}:${angular-port}${angular-prefix}
+
+
+
+#10/05/2024 modif#
+angular-admin-port: 4202
+angular-admin-prefix: /angular-admin
+angular-admin-uri: http://${hostname}:${angular-admin-port}${angular-admin-prefix}
+
+backend-admin-port: 7082
+backend-admin-prefix: /backend-admin
+backend-admin-uri: http://${hostname}:${backend-admin-port}${backend-admin-prefix}
+#10/05/2024 modif#
+
+authorization-server-port: 8084
+authorization-server-prefix: /auth
+authorization-server-uri: ${scheme}://${hostname}:${authorization-server-port}${authorization-server-prefix}
+
+bff-port: 7081
+bff-prefix: /bff
+bff-uri: ${scheme}://${hostname}:${bff-port}
+
+server:
+  port: ${reverse-proxy-port}
+  ssl:
+    enabled: false
+
+spring:
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+      routes:
+        # SPAs assets
+        - id: angular-ui
+          uri: ${angular-uri}
+          predicates:
+            - Path=${angular-prefix}/**
+
+        #10/05/2024 modif#
+        - id: angular-admin
+          uri: ${angular-admin-uri}
+          predicates:
+            - Path=${angular-admin-prefix}/**
+
+        - id: backend-admin
+          uri: http://172.29.208.1:7082
+          predicates:
+            - Path=/backend-admin/**
+
+        #10/05/2024 modif#
+
+        # Authorization-server
+        - id: authorization-server
+          uri: ${authorization-server-uri}
+          predicates:
+            - Path=${authorization-server-prefix}/**
+
+
+        # Proxy BFF
+        - id: bff
+          uri: ${bff-uri}
+          predicates:
+            - Path=${bff-prefix}/**
+          filters:
+            - StripPrefix=1
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    org:
+      springframework:
+        boot: INFO
+        web: INFO
+
+
+------------------------------------
+
+application main
+
+package com.example.reverseproxy;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class ReverseProxyApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ReverseProxyApplication.class, args);
+    }
+
+}
+--------------------------------------
+Pom.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.2</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>com.example</groupId>
+    <artifactId>Reverse-proxy</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>Reverse-proxy</name>
+    <description>Reverse-proxy</description>
+    <properties>
+        <java.version>17</java.version>
+        <spring-addons.version>7.5.3</spring-addons.version>
+        <spring-boot.version>3.2.2</spring-boot.version>
+        <spring-cloud.version>2023.0.0</spring-cloud.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.c4-soft.springaddons</groupId>
+                <artifactId>spring-addons-starter-oidc</artifactId>
+                <version>${spring-addons.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.c4-soft.springaddons</groupId>
+                <artifactId>spring-addons-starter-oidc-test</artifactId>
+                <version>${spring-addons.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+
+</project>
